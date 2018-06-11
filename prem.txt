@@ -1,0 +1,6 @@
+xeno(9) - brain brigade(4)
+rattlesnake(1) - Pencil Case(11)
+debatable(0) - Jasmine Tea(10)
+brain brigade(5) - Damage, Re-inc(3)
+Jasmine Tea(5) - xeno(3)
+debatable(7) - rattlesnake(1)
