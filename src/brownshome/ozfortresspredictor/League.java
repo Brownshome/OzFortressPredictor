@@ -12,7 +12,7 @@ public class League extends HashMap<String, Team> implements Iterable<Team> {
 		Map<Team, Collection<Team>> roots = new HashMap<>();
 		
 		for(Team team : this) {
-			team.rank = 0.5;
+			team.attack = team.defence = 0.5;
 			Team root = team.collapseRoot();
 			
 			roots.computeIfAbsent(root, t -> new ArrayList<>()).add(team);
@@ -23,7 +23,7 @@ public class League extends HashMap<String, Team> implements Iterable<Team> {
 			double acc = 1.0;
 			
 			for(Team team : this) {
-				acc *= team.determineRank();
+				acc *= team.determineAttackAndDefence();
 			}
 			
 			if((acc - old) / acc < 1e-6) {
