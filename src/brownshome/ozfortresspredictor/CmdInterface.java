@@ -21,6 +21,7 @@ public class CmdInterface {
 		loop:
 		while(true) {
 			String line = in.readLine();
+			if(line.isEmpty()) continue;
 			
 			switch(line.trim().toLowerCase()) {
 			case "calculate":
