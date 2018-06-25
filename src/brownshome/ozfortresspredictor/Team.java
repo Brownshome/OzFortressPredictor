@@ -3,8 +3,7 @@ package brownshome.ozfortresspredictor;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.NavigableSet;
-import java.util.TreeSet;
+import java.util.List;
 
 public final class Team {
 	private static ArrayList<BigInteger> factorial = new ArrayList<>();
@@ -15,20 +14,57 @@ public final class Team {
 	
 	public class Result implements Comparable<Result> {
 		public final Team other;
-		public final int score, scoreOther;
+		public final int score, scoreOther, scoreLimit;
 
 		private Result(Team other, int score, int scoreOther) {
 			this.other = other;
 			this.score = score;
 			this.scoreOther = scoreOther;
+			this.scoreLimit = 5;
 		}
 
 		public double probability() {
 			var scoreRate = attack / other.defence;
 			var otherScoreRate = other.attack / defence;
-			return Math.pow(scoreRate, score) * Math.pow(otherScoreRate, scoreOther) * Math.exp(-scoreRate - otherScoreRate) / factorial(score).doubleValue() / factorial(scoreOther).doubleValue();
+			
+			return limitedMatchChance(score, scoreOther, scoreLimit, scoreRate, otherScoreRate);
 		}
 
+		private double limitedMatchChance(int a, int b, int limit, double rateA, double rateB) {
+			assert a <= limit && b <= limit && !(a == limit && b == limit);
+			
+			if(a == limit) {
+				int steps = 20;
+				double[] probabilities = new double[b + 1];
+				
+				for(int i = 0; i <= steps; i++) {
+					double t = 1.0 / steps * i;
+					
+					//P'(5-0) = scoreRate * P(4-0)
+					probabilities[0] += rateA * matchChance(limit - 1, b, rateA * t, rateB * t) / steps;
+					
+					for(int x = 1; x <= b; x++) { //calculate P'(5-x) = scoreRate * P(4-x) + otherScoreRate * P(5-(x-1))
+						probabilities[x] += rateA * matchChance(limit - 1, b, rateA * t, rateB * t) / steps
+								+ rateB * probabilities[x - 1] / steps;
+					}
+				}
+				
+				return probabilities[b];
+			} else if(b == limit) {
+				return limitedMatchChance(b, a, limit, rateB, rateA);
+			} else {
+				return matchChance(a, b, rateA, rateB);
+			}
+		}
+		
+		private double matchChance(int a, int b, double rateA, double rateB) {
+			return poisson(rateA, a) * poisson(rateB, b);
+		}
+		
+		private double poisson(double lambda, int n) {
+			return Math.pow(lambda, n) * Math.exp(-lambda) / factorial(n).doubleValue();
+		}
+		
 		private BigInteger factorial(int i) {
 			if(factorial.size() > i)
 				return factorial.get(i);
@@ -50,7 +86,7 @@ public final class Team {
 	}
 
 	public final String name;
-	private final Collection<Result> matches = new ArrayList<>();
+	private final List<Result> matches = new ArrayList<>();
 
 	public double attack, defence;
 	private Team root;
@@ -62,11 +98,14 @@ public final class Team {
 		this.name = name;
 	}
 
+	private static final double timeAdjust = 0.0;
 	public double probabilityOfResults() {
 		double acc = 1.0;
 
+		int i = 0;
 		for(Result m : matches) {
-			acc *= m.probability();
+			i++;
+			acc *= Math.pow(m.probability(), 1.0 + i * timeAdjust);
 		}
 
 		return acc;
@@ -97,14 +136,17 @@ public final class Team {
 		mergeRoot(a, b);
 	}
 
-	public static NavigableSet<Result> computeLikelyResults(Team a, Team b) {
-		TreeSet<Result> results = new TreeSet<>();
+	public static List<Result> computeLikelyResults(Team a, Team b) {
+		ArrayList<Result> results = new ArrayList<>();
 		
-		for(int aScore = 0; aScore <= 100; aScore++) {
-			for(int bScore = 0; bScore <= 100; bScore++) {
-				results.add(a.new Result(b, aScore, bScore));
+		for(int aScore = 0; aScore <= 5; aScore++) {
+			for(int bScore = 0; bScore <= 5; bScore++) {
+				if(aScore != 5 || bScore != 5)
+					results.add(a.new Result(b, aScore, bScore));
 			}
 		}
+		
+		results.sort(null);
 		
 		return results;
 	}

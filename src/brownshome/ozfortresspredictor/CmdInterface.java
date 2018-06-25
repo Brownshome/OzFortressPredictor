@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Collection;
 import java.util.DoubleSummaryStatistics;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.regex.Matcher;
@@ -23,6 +25,8 @@ public class CmdInterface {
 		Pattern requestPattern = Pattern.compile("^predict (.+) - (.+)$");
 		Pattern statsPattern = Pattern.compile("^stats (.+)$");
 
+		boolean dirty = false;
+		
 loop: 	while(true) {
 			String line = in.readLine();
 			if(line.isEmpty()) continue;
@@ -50,8 +54,13 @@ loop: 	while(true) {
 				var teamB = league.computeIfAbsent(teamBName, Team::new);
 
 				Team.addScore(teamA, teamB, scoreA, scoreB);
+				
+				dirty = true;
 			} else {
-				league.generateScores();
+				if(dirty) {
+					league.generateScores();
+					dirty = false;
+				}
 				
 				if(request.matches()) {
 					var teamA = league.get(request.group(1));
@@ -72,7 +81,7 @@ loop: 	while(true) {
 						continue;
 					}
 
-					System.out.println(String.format("%-28s%5.1f%5.1f", team.name, team.attack, team.defence));
+					System.out.println(String.format("%s %g %g", team.name, team.attack, team.defence));
 				} else {
 					System.out.println("Input relationships of the form 'Name(a) - Name(a)'.");
 				}
@@ -80,19 +89,24 @@ loop: 	while(true) {
 		}
 	}
 
-	private static String resultsToString(NavigableSet<Result> results) {
+	private static String resultsToString(List<Result> results) {
 		StringBuilder s = new StringBuilder();
 
 		double sum = results.stream().mapToDouble(Team.Result::probability).sum();
+		double a = results.stream().filter(r -> r.score > r.scoreOther).mapToDouble(Team.Result::probability).sum() / sum;
+		double b = results.stream().filter(r -> r.score < r.scoreOther).mapToDouble(Team.Result::probability).sum() / sum;
+		double draw = 1.0 - a - b;
 		
 		int i = 0;
 		s.append("\n************ (Prediction) ************\n");
 		for(Team.Result result : results) {
 			if(i++ == 5) break;
-
+			
 			s.append(String.format("%-30s%8.1f%%\n", result.toString(), result.probability() * 100.0 / sum));
 		}
 
+		s.append(String.format("%.0f%% - %.0f%% - %.0f%%\n", a * 100.0, draw * 100.0, b * 100.0));
+		
 		return s.toString();
 	}
 
