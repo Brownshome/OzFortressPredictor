@@ -4,14 +4,9 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Queue;
 
 public final class Team {
-	private static ArrayList<BigInteger> factorial = new ArrayList<>();
-	
-	static {
-		factorial.add(BigInteger.ONE);
-	}
-	
 	public class Result implements Comparable<Result> {
 		public final Team other;
 		public final int score, scoreOther, scoreLimit;
@@ -27,51 +22,7 @@ public final class Team {
 			var scoreRate = attack / other.defence;
 			var otherScoreRate = other.attack / defence;
 			
-			return limitedMatchChance(score, scoreOther, scoreLimit, scoreRate, otherScoreRate);
-		}
-
-		private double limitedMatchChance(int a, int b, int limit, double rateA, double rateB) {
-			assert a <= limit && b <= limit && !(a == limit && b == limit);
-			
-			if(a == limit) {
-				int steps = 20;
-				double[] probabilities = new double[b + 1];
-				
-				for(int i = 0; i <= steps; i++) {
-					double t = 1.0 / steps * i;
-					
-					//P'(5-0) = scoreRate * P(4-0)
-					probabilities[0] += rateA * matchChance(limit - 1, b, rateA * t, rateB * t) / steps;
-					
-					for(int x = 1; x <= b; x++) { //calculate P'(5-x) = scoreRate * P(4-x) + otherScoreRate * P(5-(x-1))
-						probabilities[x] += rateA * matchChance(limit - 1, b, rateA * t, rateB * t) / steps
-								+ rateB * probabilities[x - 1] / steps;
-					}
-				}
-				
-				return probabilities[b];
-			} else if(b == limit) {
-				return limitedMatchChance(b, a, limit, rateB, rateA);
-			} else {
-				return matchChance(a, b, rateA, rateB);
-			}
-		}
-		
-		private double matchChance(int a, int b, double rateA, double rateB) {
-			return poisson(rateA, a) * poisson(rateB, b);
-		}
-		
-		private double poisson(double lambda, int n) {
-			return Math.pow(lambda, n) * Math.exp(-lambda) / factorial(n).doubleValue();
-		}
-		
-		private BigInteger factorial(int i) {
-			if(factorial.size() > i)
-				return factorial.get(i);
-			
-			BigInteger ans = factorial(i - 1).multiply(BigInteger.valueOf(i));
-			factorial.add(ans);
-			return ans;
+			return new ProbabilityEngine(scoreRate, otherScoreRate, scoreLimit).prob(score, scoreOther);
 		}
 
 		@Override
@@ -137,18 +88,20 @@ public final class Team {
 	}
 
 	public static List<Result> computeLikelyResults(Team a, Team b) {
-		ArrayList<Result> results = new ArrayList<>();
+		var scoreRate = a.attack / b.defence;
+		var otherScoreRate = b.attack / a.defence;
 		
-		for(int aScore = 0; aScore <= 5; aScore++) {
-			for(int bScore = 0; bScore <= 5; bScore++) {
-				if(aScore != 5 || bScore != 5)
-					results.add(a.new Result(b, aScore, bScore));
-			}
+		var engine = new ProbabilityEngine(scoreRate, otherScoreRate, 5);
+		
+		var queue = engine.computeLikelyResults();
+		
+		List<Result> list = new ArrayList<>();
+		
+		for(ProbabilityEngine.State next = queue.poll(); next.prob() > 0.001; next = queue.poll()) {
+			list.add(a.new Result(b, next.scoreA, next.scoreB));
 		}
 		
-		results.sort(null);
-		
-		return results;
+		return list;
 	}
 	
 	private static void mergeRoot(Team a, Team b) {
